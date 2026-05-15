@@ -1,0 +1,111 @@
+{
+  "browser": {
+    "channel": "chrome",
+    "port": 9224,
+    "userDataDir": ".cache/xintel-profile",
+    "headless": false,
+    "noFirstRun": true,
+    "extraArgs": ["--disable-blink-features=AutomationControlled"],
+    "healthCheckTimeoutMs": 5000
+  },
+  "schedule": {
+    "rounds": 100,
+    "intervalMs": 60000,
+    "perPageTimeoutMs": 60000,
+    "perPageScrollBatches": 6,
+    "scrollDelayMs": 1200,
+    "maxConsecutiveFailures": 5
+  },
+  "sources": {
+    "for_you": { "enabled": true, "url": "https://x.com/home" },
+    "following": { "enabled": true, "url": "https://x.com/home" },
+    "explore": { "enabled": true, "url": "https://x.com/explore" },
+    "trends": { "enabled": true, "url": "https://x.com/explore/tabs/trending" },
+    "lists": { "enabled": false, "items": [] },
+    "search": {
+      "enabled": true,
+      "queries": [
+        { "name": "ai-frontier", "q": "AI OR OpenAI OR Claude OR Gemini OR Codex OR Agent", "live": true },
+        { "name": "us-china", "q": "Trump Xi Beijing", "live": true },
+        { "name": "nvidia-chip", "q": "NVIDIA AI China Huang", "live": true },
+        { "name": "cn-ai", "q": "腾讯 AI 马化腾", "live": true },
+        { "name": "crypto-risk", "q": "Bitcoin liquidated NVIDIA crypto", "live": true }
+      ]
+    }
+  },
+  "classify": {
+    "topics": {
+      "ai_agent": {
+        "label": "AI Agent / 编程工具链",
+        "keywords": ["agent", "openai", "claude", "anthropic", "gemini", "codex", "devin", "cursor", "copilot", "llm", "rag", "vector"]
+      },
+      "us_china": {
+        "label": "中美峰会 / 外交地缘",
+        "keywords": ["trump", "xi", "beijing", "biden", "g20", "apec", "tariff", "diplomatic", "外交", "峰会", "习近平", "拜登"]
+      },
+      "ai_chip": {
+        "label": "AI 芯片 / NVIDIA / 半导体",
+        "keywords": ["nvidia", "huang", "tsmc", "asml", "h100", "h200", "b200", "gpu", "semiconductor", "chip ban", "半导体", "光刻"]
+      },
+      "cn_ai": {
+        "label": "中国 AI / 腾讯 / 创业融资",
+        "keywords": ["腾讯", "马化腾", "百度", "阿里", "字节", "deepseek", "moonshot", "kimi", "智谱", "百川", "minimax", "融资"]
+      },
+      "crypto": {
+        "label": "Crypto / Web3 / 市场",
+        "keywords": ["bitcoin", "btc", "eth", "ethereum", "crypto", "liquidat", "defi", "stablecoin", "web3", "altcoin", "memecoin"]
+      },
+      "noise": {
+        "label": "产品营销 / 广告 / 低价值噪声",
+        "keywords": ["promo", "giveaway", "airdrop", "follow back", "f4f", "buy now", "discount", "limited offer"]
+      }
+    },
+    "fallbackTopic": "other"
+  },
+  "dedupe": {
+    "minTextLength": 8,
+    "shingleSize": 6,
+    "similarityThreshold": 0.85
+  },
+  "notion": {
+    "parentPageId": null,
+    "titleTemplate": "X 情报采集简报 - {date}",
+    "maxBlocksPerRequest": 100
+  },
+  "logging": {
+    "level": "info",
+    "prettyPrint": true
+  },
+  "paths": {
+    "dataDir": "data",
+    "runsDir": "data/runs",
+    "summariesDir": "data/summaries",
+    "logsDir": "data/logs",
+    "aggregatesDir": "data/aggregates",
+    "dashboardDir": "data/dashboard",
+    "statusFile": "data/latest-status.json",
+    "lockFile": "data/.lock",
+    "ipcSocket": "data/xintel.sock"
+  },
+  "packs": {
+    "enabled": [],
+    "searchPaths": ["config/packs"]
+  },
+  "llm": {
+    "enabled": false,
+    "provider": "none",
+    "model": "claude-3-5-sonnet-latest",
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
+    "maxOutputTokens": 1500,
+    "temperature": 0.2,
+    "timeoutMs": 45000,
+    "maxCallsPerSummary": 1
+  },
+  "push": {
+    "channels": []
+  },
+  "health": {
+    "emptyRoundsThreshold": 3,
+    "probeNetwork": false
+  }
+}

@@ -1,7 +1,21 @@
-# xintel — X 情报采集与 Notion 入库系统
+# xintel — X 情报采集与多客户群简报平台
 
-> 本地运行、只读采集、可配置、可恢复。
-> 连接你自己已经登录的 Chrome/Edge，对 X.com 进行定时情报采集，自动去重、聚类、生成简报并写入 Notion。
+> 本地运行、只读采集、可配置、可恢复、按客户群可插拔。
+> 连接你自己已经登录的 Chrome/Edge，对 X.com 进行定时情报采集，自动去重、按客户群分类、可选 LLM 增强，生成 Markdown 简报，并推送到 Notion / Slack / Discord / Telegram / Webhook。
+
+## 客户群（Segment Packs）
+
+本平台通过 **Segment Pack** 抽象同时服务多类客户。Wave 1 内置 3 个 pack：
+
+| Pack | 客户群 | 内置主题数 |
+| --- | --- | --- |
+| `ai-watcher` | AI 研究员 / 工程师 / 创业者 / AI 投资人 | 11 |
+| `crypto-trader` | 加密交易者 / DeFi 用户 / 链上分析师 | 9 |
+| `finance-media` | 财经媒体作者 / 宏观研究员 / 卖方分析师 | 9 |
+
+- 启用：在 `config/local.json` 里设置 `packs.enabled: ["ai-watcher"]`，或任何命令加 `--pack ai-watcher`。
+- 罗列：`xintel pack list`。
+- 自定义：`config/packs/*.json`（Schema 见 `docs/packs.md`）。
 
 ## 设计原则
 
@@ -21,6 +35,12 @@
 | 暂停 / 恢复 / 停止 / 查看状态 | `xintel pause / resume / stop / status` |
 | 生成 Markdown 情报简报（去重 + 规则分类 + 噪声/传言识别） | `xintel summarize` |
 | 写入 Notion（按 100-block 分页） | `xintel notion push` |
+| 推送到多渠道（Notion / Slack / Discord / Telegram / Webhook） | `xintel push --summary <file>` |
+| 列出可用 segment pack | `xintel pack list` / `xintel pack show <name>` |
+| LLM 增强简报（BYOK：Anthropic Claude / OpenAI GPT / Google Gemini，缺 key 自动降级到规则模式） | 配置 `llm` 后由 `summarize` 自动调用 |
+| 跨日趋势对比（自动写入 `data/aggregates/`） | `summarize` 自动生成 |
+| 健康检查（DOM 漂移 / 浏览器状态 / pack / LLM / push） | `xintel doctor` |
+| 只读 Web 仪表盘（本地 HTTP，列出简报与聚合） | `xintel serve --port 3478` |
 | 查看 / 初始化配置 | `xintel config show / init` |
 
 ## 安装

@@ -1,0 +1,46 @@
+{
+  "browser": {
+    "channel": "chrome",
+    "port": 9224
+  },
+  "packs": {
+    "enabled": ["ai-watcher"]
+  },
+  "llm": {
+    "enabled": false,
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-latest",
+    "apiKeyEnv": "ANTHROPIC_API_KEY"
+  },
+  "push": {
+    "channels": [
+      {
+        "name": "notion-main",
+        "type": "notion",
+        "enabled": false
+      },
+      {
+        "name": "slack-team",
+        "type": "slack",
+        "enabled": false,
+        "url": "https://hooks.slack.com/services/..."
+      },
+      {
+        "name": "discord-watch",
+        "type": "discord",
+        "enabled": false,
+        "url": "https://discord.com/api/webhooks/..."
+      },
+      {
+        "name": "telegram-self",
+        "type": "telegram",
+        "enabled": false,
+        "apiKeyEnv": "TELEGRAM_BOT_TOKEN",
+        "chatId": "@yourchannel"
+      }
+    ]
+  },
+  "notion": {
+    "parentPageId": "REPLACE_WITH_NOTION_PARENT_PAGE_ID"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "name": "crypto-trader",
+  "description": "Crypto trader intelligence: BTC/ETH/SOL/L2 + on-chain whales + liquidations + macro catalysts.",
+  "version": "0.1.0",
+  "audience": "Active crypto traders, DeFi users, on-chain analysts",
+  "language": "zh-en",
+  "searchQueries": [
+    { "name": "btc-eth", "q": "BTC OR ETH OR bitcoin OR ethereum OR ETF OR liquidated", "live": true },
+    { "name": "solana", "q": "SOL OR Solana OR memecoin OR pump.fun", "live": true },
+    { "name": "macro-crypto", "q": "FOMC OR \"rate cut\" OR Powell crypto OR SEC crypto", "live": true },
+    { "name": "exchanges", "q": "Binance OR Coinbase OR Bybit OR OKX OR Kraken", "live": true },
+    { "name": "stablecoin", "q": "USDT OR USDC OR Tether OR Circle OR stablecoin", "live": true },
+    { "name": "whale-onchain", "q": "whale alert OR arkham OR nansen OR \"on-chain\"", "live": true },
+    { "name": "hacks-rug", "q": "hack OR rug OR exploit OR drained", "live": true }
+  ],
+  "lists": [],
+  "topics": {
+    "btc": {
+      "label": "BTC 现货 / ETF / 巨鲸",
+      "keywords": ["bitcoin", "btc", "satoshi", "spot etf", "ibit", "blackrock btc", "microstrategy", "saylor", "halving"],
+      "watchHandles": ["@saylor", "@cz_binance", "@whale_alert"]
+    },
+    "eth": {
+      "label": "ETH / L2 / restaking",
+      "keywords": ["ethereum", "eth", "vitalik", "l2", "arbitrum", "optimism", "base", "blast", "restaking", "eigenlayer", "lido"],
+      "watchHandles": ["@VitalikButerin", "@ethereum"]
+    },
+    "sol_memecoin": {
+      "label": "Solana / memecoin / pump",
+      "keywords": ["solana", "sol", "memecoin", "meme coin", "pump.fun", "bonk", "wif", "popcat", "moodeng"],
+      "watchHandles": ["@solana", "@AnatolyYakovenko"]
+    },
+    "macro": {
+      "label": "宏观催化 (利率/通胀/SEC)",
+      "keywords": ["fomc", "powell", "rate cut", "rate hike", "inflation", "cpi", "ppi", "sec", "cftc", "gary gensler", "trump crypto"],
+      "watchHandles": []
+    },
+    "stable": {
+      "label": "稳定币 / Tether / Circle",
+      "keywords": ["usdt", "usdc", "tether", "circle", "stablecoin", "depeg"],
+      "watchHandles": ["@Tether_to", "@circle"]
+    },
+    "exchange": {
+      "label": "交易所 (Binance/Coinbase/OKX)",
+      "keywords": ["binance", "coinbase", "okx", "bybit", "kraken", "kucoin", "bitget", "cz", "richard teng"],
+      "watchHandles": ["@cz_binance", "@coinbase"]
+    },
+    "liquidation": {
+      "label": "爆仓 / 大额清算",
+      "keywords": ["liquidated", "liquidation", "rekt", "wipeout", "cascade", "long squeezed", "short squeezed"],
+      "watchHandles": ["@CoinGlassGlobal"]
+    },
+    "hack_rug": {
+      "label": "黑客 / 漏洞 / rug",
+      "keywords": ["hack", "exploit", "rug pull", "rugpull", "drained", "stolen", "private key compromised", "phishing"],
+      "watchHandles": ["@PeckShieldAlert", "@SlowMist_Team"]
+    },
+    "onchain": {
+      "label": "链上数据 / 巨鲸地址",
+      "keywords": ["whale alert", "arkham", "nansen", "dune", "on-chain", "onchain", "transferred", "deposited", "withdrew"],
+      "watchHandles": ["@whale_alert", "@ArkhamIntel"]
+    }
+  },
+  "fallbackTopic": "other",
+  "rumorHints": [
+    "rumor", "rumour", "据传", "传闻", "据说", "leaked", "leak", "insider says", "源自", "据知情人士", "alpha leak"
+  ],
+  "noiseHints": [
+    "giveaway", "airdrop free", "follow back", "f4f", "100x guarantee", "moonshot now", "buy this gem",
+    "shill", "pump signal", "限时", "薅羊毛", "白嫖", "telegram pump group"
+  ],
+  "llmSystemPrompt": "You are a crypto market analyst writing a fast, decision-oriented briefing for active traders. Tone: terse, scannable, with emoji indicators (📈 bullish / 📉 bearish / ⚠️ risk / 🐋 whale / 🚨 hack). For each finding, mark: [FACT] for confirmed events (official exchange announcements, on-chain transactions, regulator actions), [INFER] for trader-narrative inferences, [RUMOR] for unverified claims. Separate price-action signals from fundamental events. Distinguish: BTC vs ETH vs SOL vs memecoins. Highlight liquidations, large on-chain movements, hacks, regulatory actions, and macro catalysts. Output language: bilingual zh-en where naturally fits; key headlines in Chinese, tweet quotes in original language. Do NOT issue financial advice; surface facts and let the trader decide.",
+  "llmUserPromptTemplate": "## TOPIC DUMP\n{{topicDump}}\n\n## YESTERDAY'S COUNTS\n{{previousDayCounts}}\n\n## TASK\nProduce a crypto-trader briefing in Markdown:\n1. **📊 当前定调 (Tone of the market)** — 1-2 sentences, BTC/ETH/SOL combined.\n2. **🚨 重大事件 (Major events)** — bullets, each tagged [FACT]/[INFER]/[RUMOR]; include hack/regulator/large liquidation events.\n3. **🐋 链上信号 (On-chain signals)** — whale moves, exchange flows.\n4. **📈📉 主题轮动 (Topic rotation)** — based on day-over-day deltas; what's hot, what's cooling.\n5. **⚠️ 风险与传言 (Rumors & risks to watch)** — unverified leaks, possible rug pulls, regulatory threats.\n6. **🎯 关注清单 (Watch list)** — events/tickers/handles to monitor next 24h.\n\nNever say \"buy\" or \"sell\". Quote one representative tweet per finding when possible.",
+  "reportTemplate": {
+    "title": "Crypto 交易者每日情报",
+    "introNote": "面向加密交易者的快速简报。所有内容来自 X.com 公开页面，仅作信息整理，不构成任何交易建议。区分「事实 / 推断 / 传言」。",
+    "sections": [],
+    "includeTrends": true,
+    "includeRumors": true,
+    "includeAppendix": true,
+    "maxSamplesPerTopic": 6,
+    "reportTone": "trader"
+  },
+  "pushChannels": ["notion"]
+}
