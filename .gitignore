@@ -7,9 +7,11 @@ dist/
 data/runs/*
 data/summaries/*
 data/logs/*
+data/aggregates/*
 !data/runs/.gitkeep
 !data/summaries/.gitkeep
 !data/logs/.gitkeep
+!data/aggregates/.gitkeep
 data/.lock
 data/latest-status.json
 data/xintel.sock
@@ -17,6 +19,7 @@ data/xintel.sock
 # local overrides
 config/local.json
 config/local.*.json
+!config/local.example.json
 
 # os / editor
 .DS_Store

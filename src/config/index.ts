@@ -3,6 +3,11 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { ConfigSchema, type AppConfig } from "./schema.js";
+import {
+  resolvePacks,
+  applyPacks,
+  type LoadedPack,
+} from "./packs.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -42,6 +47,8 @@ function deepMerge<T>(target: T, source: unknown): T {
 
 export interface LoadConfigOptions {
   configPath?: string;
+  /** Override pack names to enable, overriding config.packs.enabled. */
+  packs?: string[];
 }
 
 export interface LoadedConfig {
@@ -49,6 +56,8 @@ export interface LoadedConfig {
   hash: string;
   sources: string[];
   projectRoot: string;
+  packs: LoadedPack[];
+  missingPacks: string[];
 }
 
 export function loadConfig(opts: LoadConfigOptions = {}): LoadedConfig {
@@ -76,6 +85,8 @@ export function loadConfig(opts: LoadConfigOptions = {}): LoadedConfig {
   parsed.paths.runsDir = resolve(projectRoot, parsed.paths.runsDir);
   parsed.paths.summariesDir = resolve(projectRoot, parsed.paths.summariesDir);
   parsed.paths.logsDir = resolve(projectRoot, parsed.paths.logsDir);
+  parsed.paths.aggregatesDir = resolve(projectRoot, parsed.paths.aggregatesDir);
+  parsed.paths.dashboardDir = resolve(projectRoot, parsed.paths.dashboardDir);
   parsed.paths.statusFile = resolve(projectRoot, parsed.paths.statusFile);
   parsed.paths.lockFile = resolve(projectRoot, parsed.paths.lockFile);
   parsed.paths.ipcSocket = resolve(projectRoot, parsed.paths.ipcSocket);
@@ -84,12 +95,27 @@ export function loadConfig(opts: LoadConfigOptions = {}): LoadedConfig {
     parsed.browser.userDataDir = resolve(projectRoot, parsed.browser.userDataDir);
   }
 
+  const enabledPacks = opts.packs ?? parsed.packs.enabled;
+  const packResolution = resolvePacks(
+    projectRoot,
+    enabledPacks,
+    parsed.packs.searchPaths,
+  );
+  const withPacks = applyPacks(parsed, packResolution.packs);
+
   const hash = createHash("sha256")
-    .update(JSON.stringify(parsed))
+    .update(JSON.stringify(withPacks))
     .digest("hex")
     .slice(0, 12);
 
-  return { config: parsed, hash, sources, projectRoot };
+  return {
+    config: withPacks,
+    hash,
+    sources,
+    projectRoot,
+    packs: packResolution.packs,
+    missingPacks: packResolution.missing,
+  };
 }
 
 export function getProjectRoot(): string {

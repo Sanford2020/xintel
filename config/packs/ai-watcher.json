@@ -1,0 +1,99 @@
+{
+  "name": "ai-watcher",
+  "description": "Daily AI-industry intelligence: OpenAI / Anthropic / Google DeepMind / Meta / xAI plus Chinese AI labs and AI hardware ecosystem.",
+  "version": "0.1.0",
+  "audience": "AI researchers, engineers, founders, product managers, AI-focused investors",
+  "language": "zh-en",
+  "searchQueries": [
+    { "name": "openai", "q": "OpenAI OR ChatGPT OR \"Sam Altman\" OR GPT-5 OR o3 OR o1", "live": true },
+    { "name": "anthropic", "q": "Anthropic OR Claude OR \"Dario Amodei\" OR \"Jared Kaplan\"", "live": true },
+    { "name": "google-ai", "q": "Gemini OR DeepMind OR \"Demis Hassabis\" OR Veo OR Imagen", "live": true },
+    { "name": "meta-ai", "q": "Llama OR \"Yann LeCun\" OR Meta AI OR MovieGen", "live": true },
+    { "name": "xai-grok", "q": "xAI OR Grok OR Colossus", "live": true },
+    { "name": "cn-ai", "q": "DeepSeek OR Kimi 月之暗面 OR 智谱 OR MiniMax OR 豆包", "live": true },
+    { "name": "ai-hardware", "q": "NVIDIA OR \"Jensen Huang\" OR H100 OR H200 OR B200 OR Groq OR Cerebras", "live": true },
+    { "name": "ai-eval", "q": "MMLU OR HumanEval OR SWE-bench OR LMSYS OR Arena", "live": true },
+    { "name": "ai-funding", "q": "AI funding OR Series A OR Series B AI", "live": true },
+    { "name": "ai-safety", "q": "AI safety OR RLHF OR alignment OR jailbreak", "live": true }
+  ],
+  "lists": [],
+  "topics": {
+    "openai": {
+      "label": "OpenAI / ChatGPT 阵营",
+      "keywords": ["openai", "chatgpt", "gpt-4", "gpt-5", "gpt5", "sam altman", "altman", "sora", "o1", "o3", "o4", "codex"],
+      "watchHandles": ["@OpenAI", "@sama", "@gdb", "@kevinweil"]
+    },
+    "anthropic": {
+      "label": "Anthropic / Claude",
+      "keywords": ["anthropic", "claude", "claude 3", "claude 4", "dario amodei", "jack clark", "computer use"],
+      "watchHandles": ["@AnthropicAI", "@DarioAmodei", "@JackClarkSF"]
+    },
+    "google_ai": {
+      "label": "Google / DeepMind / Gemini",
+      "keywords": ["gemini", "deepmind", "demis hassabis", "google ai", "vertex ai", "imagen", "veo"],
+      "watchHandles": ["@GoogleDeepMind", "@demishassabis"]
+    },
+    "meta_ai": {
+      "label": "Meta AI / Llama / 开源模型",
+      "keywords": ["llama", "meta ai", "yann lecun", "fair", "movie gen", "open source ai", "huggingface"],
+      "watchHandles": ["@AIatMeta", "@ylecun"]
+    },
+    "xai_grok": {
+      "label": "xAI / Grok / Musk AI",
+      "keywords": ["xai", "grok", "elon musk ai", "colossus"],
+      "watchHandles": ["@xai", "@elonmusk"]
+    },
+    "cn_ai": {
+      "label": "中国 AI / 国产大模型",
+      "keywords": ["deepseek", "deep seek", "kimi", "月之暗面", "智谱", "glm", "minimax", "海螺", "豆包", "qwen", "通义", "千问", "百度", "文心", "腾讯", "混元", "字节", "moonshot"],
+      "watchHandles": ["@deepseek_ai", "@Kimi_Moonshot", "@Alibaba_Qwen"]
+    },
+    "ai_hardware": {
+      "label": "AI 算力 / 芯片 / 数据中心",
+      "keywords": ["nvidia", "jensen huang", "h100", "h200", "b100", "b200", "blackwell", "gb200", "amd mi300", "tpu", "groq", "cerebras", "sambanova", "data center", "数据中心", "光刻"],
+      "watchHandles": ["@nvidia", "@SemiAnalysis_"]
+    },
+    "ai_eval": {
+      "label": "评测与基准 / 模型对比",
+      "keywords": ["mmlu", "humaneval", "swe-bench", "swe bench", "lmsys", "arena", "leaderboard", "benchmark", "elo"],
+      "watchHandles": ["@lmsysorg", "@scaling01"]
+    },
+    "ai_funding": {
+      "label": "融资 / 估值 / IPO",
+      "keywords": ["series a", "series b", "series c", "raised", "funding round", "valuation", "ipo ai", "ai startup", "billion valuation", "估值", "融资", "ipo"],
+      "watchHandles": []
+    },
+    "ai_safety": {
+      "label": "AI 安全 / 监管 / 对齐",
+      "keywords": ["ai safety", "alignment", "rlhf", "rlaif", "jailbreak", "red team", "ai act", "executive order", "safety institute", "对齐", "监管"],
+      "watchHandles": []
+    },
+    "ai_agent": {
+      "label": "Agent / 编程工具链",
+      "keywords": ["ai agent", "agentic", "autonomous agent", "computer use", "cursor", "cline", "windsurf", "devin", "codex", "claude code", "github copilot", "amazon q"],
+      "watchHandles": ["@cursor_ai", "@devin"]
+    }
+  },
+  "fallbackTopic": "other",
+  "rumorHints": [
+    "rumor", "rumour", "据传", "传闻", "据说", "据报道", "leaked", "leak", "internal source", "anonymous source",
+    "源自", "据知情人士", "internal memo"
+  ],
+  "noiseHints": [
+    "giveaway", "airdrop", "follow back", "f4f", "buy now", "promo", "限时", "薅羊毛", "白嫖",
+    "course launch", "ebook free", "click link in bio"
+  ],
+  "llmSystemPrompt": "You are an AI-industry analyst writing a daily briefing for AI engineers, researchers, and AI-focused investors. Distinguish strictly between: (a) confirmed facts (official posts from OpenAI/Anthropic/Google/Meta/xAI, primary-source links), (b) reasonable inferences drawn from multiple corroborating signals, and (c) rumors or unverified claims. Mark each finding with [FACT] / [INFER] / [RUMOR]. Avoid hype. Quote one short representative tweet per finding when possible. Be specific (model names, version numbers, dollar amounts, person names). Output language: bilingual zh-en, with section headers in Chinese and tweet text quoted in original language. Surface what is genuinely NEW relative to known facts (e.g. a new model launch, a leadership change, an unusual funding amount, a safety incident).",
+  "llmUserPromptTemplate": "Below is a deduplicated set of tweets from the last collection window, grouped by topic. Each topic has a header, a count, and up to {{maxSamplesPerTopic}} representative tweets.\n\n## TOPIC DUMP\n{{topicDump}}\n\n## YESTERDAY'S COUNTS (for trend comparison; may be empty)\n{{previousDayCounts}}\n\n## TASK\nProduce a daily AI-industry briefing in Markdown with these sections (in this order):\n1. **今日要点 (Today's bottom line)** — 5 bullets max; each bullet ≤ 25 字; one bullet = one development; tag with [FACT]/[INFER]/[RUMOR].\n2. **重大变化 (Major moves)** — for each topic with new significant signal, 1 short paragraph; include who/what/when/why-it-matters; quote one tweet.\n3. **传言与待核实 (Rumors to verify)** — list rumored items and why they're unverified.\n4. **昨日对比 (Day-over-day delta)** — if `YESTERDAY'S COUNTS` is non-empty, list topics with >50% change.\n5. **观察清单 (Watch list)** — open questions, things to track tomorrow.\n\nNever invent facts. If a topic has no notable signal today, say so explicitly rather than padding.",
+  "reportTemplate": {
+    "title": "AI 圈每日情报简报",
+    "introNote": "本简报覆盖 OpenAI / Anthropic / Google DeepMind / Meta / xAI / 中国 AI 阵营 / AI 算力与评测。所有内容来自 X.com 公开页面（只读，未点赞未关注），区分「事实 / 推断 / 传言」三类。",
+    "sections": [],
+    "includeTrends": true,
+    "includeRumors": true,
+    "includeAppendix": true,
+    "maxSamplesPerTopic": 8,
+    "reportTone": "researcher"
+  },
+  "pushChannels": ["notion"]
+}

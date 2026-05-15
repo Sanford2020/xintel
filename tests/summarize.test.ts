@@ -22,7 +22,7 @@ function tw(text: string, id: string, handle = "@u"): TweetRecord {
 }
 
 describe("summarize", () => {
-  it("produces a markdown briefing with sections", () => {
+  it("produces a markdown briefing with sections", async () => {
     const config = ConfigSchema.parse({
       browser: {},
       schedule: {},
@@ -65,7 +65,7 @@ describe("summarize", () => {
       ],
     };
 
-    const { summary, markdown } = summarize({ runId: "test", rounds: [round], config });
+    const { summary, markdown } = await summarize({ runId: "test", rounds: [round], config });
     expect(summary.raw).toBe(4);
     expect(summary.deduped).toBeLessThan(4);
     expect(markdown).toMatch(/X 情报采集简报/);

@@ -81,8 +81,31 @@
     "runsDir": "data/runs",
     "summariesDir": "data/summaries",
     "logsDir": "data/logs",
+    "aggregatesDir": "data/aggregates",
+    "dashboardDir": "data/dashboard",
     "statusFile": "data/latest-status.json",
     "lockFile": "data/.lock",
     "ipcSocket": "data/xintel.sock"
+  },
+  "packs": {
+    "enabled": [],
+    "searchPaths": ["config/packs"]
+  },
+  "llm": {
+    "enabled": false,
+    "provider": "none",
+    "model": "claude-3-5-sonnet-latest",
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
+    "maxOutputTokens": 1500,
+    "temperature": 0.2,
+    "timeoutMs": 45000,
+    "maxCallsPerSummary": 1
+  },
+  "push": {
+    "channels": []
+  },
+  "health": {
+    "emptyRoundsThreshold": 3,
+    "probeNetwork": false
   }
 }

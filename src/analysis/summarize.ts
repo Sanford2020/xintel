@@ -4,16 +4,21 @@ import type {
   Summary,
   TweetRecord,
 } from "../types/index.js";
-import type { AppConfig } from "../config/schema.js";
+import type { AppConfig, SegmentPack } from "../config/schema.js";
 import { classifyAll } from "./classify.js";
 import { dedupe } from "./dedupe.js";
 import { normalizeTweets } from "./normalize.js";
+import type { LlmAdapter } from "../integrations/llm.js";
+import type {
+  AggregateComparison,
+  DailyAggregate,
+} from "../storage/dayAggregates.js";
 
-const RUMOR_HINTS = [
+const BUILT_IN_RUMOR_HINTS = [
   "rumor", "rumour", "据传", "传闻", "据说", "据报道", "internal source",
   "leak", "leaked", "源自", "据知情人士",
 ];
-const NOISE_HINTS = [
+const BUILT_IN_NOISE_HINTS = [
   "giveaway", "airdrop", "follow back", "f4f", "buy now",
   "promo", "限时", "薅羊毛", "白嫖",
 ];
@@ -67,11 +72,11 @@ function inferNewSignals(tweets: ClassifiedTweet[]): string[] {
   return out.slice(0, 30);
 }
 
-function detectRumors(tweets: ClassifiedTweet[]) {
+function detectRumors(tweets: ClassifiedTweet[], hints: string[]) {
   const out: { text: string; reason: string }[] = [];
   for (const t of tweets) {
     const text = (t.textNorm ?? "").toLowerCase();
-    const hit = RUMOR_HINTS.find((h) => text.includes(h));
+    const hit = hints.find((h) => text.includes(h.toLowerCase()));
     if (hit) {
       out.push({
         text: t.textNorm.slice(0, 200),
@@ -82,11 +87,11 @@ function detectRumors(tweets: ClassifiedTweet[]) {
   return out.slice(0, 40);
 }
 
-function detectNoise(tweets: ClassifiedTweet[]): number {
+function detectNoise(tweets: ClassifiedTweet[], hints: string[]): number {
   let n = 0;
   for (const t of tweets) {
     const text = (t.textNorm ?? "").toLowerCase();
-    if (NOISE_HINTS.some((h) => text.includes(h))) n += 1;
+    if (hints.some((h) => text.includes(h.toLowerCase()))) n += 1;
   }
   return n;
 }
@@ -112,15 +117,67 @@ export interface SummarizeInput {
   runId: string;
   rounds: RoundRecord[];
   config: AppConfig;
+  /** Active pack for tone/template/LLM prompt (null => fall back to defaults). */
+  pack?: SegmentPack | null;
+  /** Optional LLM adapter. If disabled, briefing skips LLM section. */
+  llm?: LlmAdapter | null;
+  /** Cross-day comparison (optional). */
+  comparison?: AggregateComparison | null;
 }
 
 export interface SummarizeOutput {
   summary: Summary;
   markdown: string;
+  /** True if LLM was actually used to produce the "AI 综述" section. */
+  llmUsed: boolean;
+  /** Daily aggregate suitable for storing on disk for cross-day comparison. */
+  aggregate: Pick<
+    DailyAggregate,
+    "raw" | "deduped" | "perTopic" | "perSource" | "highFrequency" | "rumorCount" | "noiseCount"
+  >;
 }
 
-export function summarize(input: SummarizeInput): SummarizeOutput {
-  const { rounds, config } = input;
+function fmtTweet(t: ClassifiedTweet): string {
+  const who = t.handle ? `${t.author ?? ""} (${t.handle})` : t.author ?? "匿名";
+  const link = t.permalink ? ` ${t.permalink}` : "";
+  const text = (t.textNorm || t.textRaw || "").replace(/\n/g, " ").trim().slice(0, 280);
+  return `- ${who}: ${text}${link}`;
+}
+
+function buildTopicDump(
+  summary: Summary,
+  maxSamplesPerTopic: number,
+): string {
+  const blocks: string[] = [];
+  for (const [topic, items] of Object.entries(summary.topics)) {
+    if (topic === "noise") continue;
+    if (items.length === 0) continue;
+    const label = items[0]?.topicLabel ?? topic;
+    blocks.push(`### ${label} (${items.length}, key=${topic})`);
+    for (const t of items.slice(0, maxSamplesPerTopic)) {
+      blocks.push(fmtTweet(t));
+    }
+    blocks.push("");
+  }
+  return blocks.join("\n");
+}
+
+function buildPrevCountsBlock(comparison: AggregateComparison | null | undefined): string {
+  if (!comparison || !comparison.previousDate) return "(no previous-day data)";
+  const lines: string[] = [];
+  lines.push(`previous day = ${comparison.previousDate}`);
+  for (const d of comparison.deltas) {
+    if (d.todayCount === 0 && d.yesterdayCount === 0) continue;
+    lines.push(`- ${d.topic}: ${d.yesterdayCount} → ${d.todayCount} (Δ ${d.diff >= 0 ? "+" : ""}${d.diff})`);
+  }
+  if (comparison.newToday.length > 0) {
+    lines.push(`new topics today: ${comparison.newToday.join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
+export async function summarize(input: SummarizeInput): Promise<SummarizeOutput> {
+  const { rounds, config, pack, llm, comparison } = input;
 
   const allTweets: TweetRecord[] = [];
   for (const r of rounds) {
@@ -130,9 +187,16 @@ export function summarize(input: SummarizeInput): SummarizeOutput {
   }
   const normalized = normalizeTweets(allTweets);
   const { unique, stat } = dedupe(normalized, config.dedupe);
+
+  const topicsForClassify =
+    pack && Object.keys(pack.topics).length > 0
+      ? pack.topics
+      : config.classify.topics;
+  const fallbackTopic = pack?.fallbackTopic ?? config.classify.fallbackTopic;
+
   const classified = classifyAll(unique, {
-    topics: config.classify.topics,
-    fallbackTopic: config.classify.fallbackTopic,
+    topics: topicsForClassify,
+    fallbackTopic,
   });
 
   const perSource: Record<string, number> = {};
@@ -149,6 +213,11 @@ export function summarize(input: SummarizeInput): SummarizeOutput {
     topics[t.topic]!.push(t);
   }
 
+  const rumorHints =
+    pack && pack.rumorHints.length > 0 ? pack.rumorHints : BUILT_IN_RUMOR_HINTS;
+  const noiseHints =
+    pack && pack.noiseHints.length > 0 ? pack.noiseHints : BUILT_IN_NOISE_HINTS;
+
   const summary: Summary = {
     runId: input.runId,
     windowStart: rounds[0]?.startedAt ?? "",
@@ -161,26 +230,87 @@ export function summarize(input: SummarizeInput): SummarizeOutput {
     topics,
     highFrequency: topPhrases(classified, 2, 30),
     newSignals: inferNewSignals(classified),
-    rumors: detectRumors(classified),
-    noise: detectNoise(classified),
+    rumors: detectRumors(classified, rumorHints),
+    noise: detectNoise(classified, noiseHints),
     followUps: followUps(classified),
     appendix: { samples: classified.slice(0, 50) },
   };
 
-  return { summary, markdown: renderMarkdown(summary, config) };
+  let llmSection = "";
+  let llmUsed = false;
+  if (llm && llm.enabled && !llm.isExhausted() && classified.length > 0) {
+    const pkTemplate = pack?.reportTemplate;
+    const systemPrompt = pack?.llmSystemPrompt?.trim()
+      ? pack.llmSystemPrompt
+      : "You are a careful intelligence analyst. Mark each finding with [FACT], [INFER], or [RUMOR]. Output Markdown.";
+    const userTemplate = pack?.llmUserPromptTemplate?.trim()
+      ? pack.llmUserPromptTemplate
+      : "Topic dump:\n{{topicDump}}\n\nProduce a Markdown briefing.";
+    const topicDump = buildTopicDump(
+      summary,
+      pkTemplate?.maxSamplesPerTopic ?? 8,
+    );
+    const previousDayCounts = buildPrevCountsBlock(comparison);
+    const userPrompt = userTemplate
+      .replace(/\{\{topicDump\}\}/g, topicDump)
+      .replace(/\{\{previousDayCounts\}\}/g, previousDayCounts)
+      .replace(
+        /\{\{maxSamplesPerTopic\}\}/g,
+        String(pkTemplate?.maxSamplesPerTopic ?? 8),
+      );
+    const res = await llm.call({ systemPrompt, userPrompt });
+    if (res && res.text) {
+      llmSection = res.text;
+      llmUsed = true;
+    }
+  }
+
+  const markdown = renderMarkdown(summary, config, {
+    pack,
+    llmSection,
+    comparison,
+  });
+
+  return {
+    summary,
+    markdown,
+    llmUsed,
+    aggregate: {
+      raw: stat.raw,
+      deduped: stat.deduped,
+      perTopic,
+      perSource,
+      highFrequency: summary.highFrequency,
+      rumorCount: summary.rumors.length,
+      noiseCount: summary.noise,
+    },
+  };
 }
 
-function fmtTweet(t: ClassifiedTweet): string {
-  const who = t.handle ? `${t.author ?? ""} (${t.handle})` : t.author ?? "匿名";
-  const link = t.permalink ? ` ${t.permalink}` : "";
-  const text = (t.textNorm || t.textRaw || "").replace(/\n/g, " ").trim().slice(0, 280);
-  return `- ${who}: ${text}${link}`;
+export interface RenderOptions {
+  pack?: SegmentPack | null;
+  llmSection?: string;
+  comparison?: AggregateComparison | null;
 }
 
-export function renderMarkdown(summary: Summary, config: AppConfig): string {
+export function renderMarkdown(
+  summary: Summary,
+  config: AppConfig,
+  opts: RenderOptions = {},
+): string {
+  const { pack, llmSection, comparison } = opts;
+  const template = pack?.reportTemplate;
+  const title = template?.title ?? "X 情报采集简报";
+  const introNote =
+    template?.introNote ??
+    "以下内容来自 X.com 公开页面，**包含 X 上流传但未核验的说法**，请勿直接当作事实采用。AI 的判断与原始信息已区分标注。";
+
   const lines: string[] = [];
-  lines.push(`# X 情报采集简报`);
+  lines.push(`# ${title}`);
   lines.push("");
+  if (pack) {
+    lines.push(`> **客户群 (Pack)**: \`${pack.name}\` — ${pack.description}`);
+  }
   lines.push(
     `**采集窗口**: \`${summary.windowStart}\` → \`${summary.windowEnd}\``,
   );
@@ -193,10 +323,16 @@ export function renderMarkdown(summary: Summary, config: AppConfig): string {
     } 个，主题 ${Object.keys(summary.perTopic).length} 类。`,
   );
   lines.push("");
-  lines.push(`> ⚠ 以下内容来自 X.com 公开页面，**包含 X 上流传但未核验的说法**，请勿直接当作事实采用。AI 的判断与原始信息已区分标注。`);
+  lines.push(`> ⚠ ${introNote}`);
   lines.push("");
 
-  lines.push(`## 关键判断（AI 推断）`);
+  if (llmSection && llmSection.trim().length > 0) {
+    lines.push(`## AI 综述 (LLM 推断)`);
+    lines.push(llmSection.trim());
+    lines.push("");
+  }
+
+  lines.push(`## 关键判断 (规则推断)`);
   if (summary.followUps.length === 0) {
     lines.push(`- 暂无足以构成判断的高密度信号。`);
   } else {
@@ -204,12 +340,37 @@ export function renderMarkdown(summary: Summary, config: AppConfig): string {
   }
   lines.push("");
 
+  if (comparison && comparison.previousDate) {
+    lines.push(`## 昨日对比 (跨日趋势)`);
+    lines.push(`比对日期: ${comparison.previousDate} → ${comparison.date}`);
+    const movers = comparison.deltas
+      .filter((d) => d.todayCount > 0 || d.yesterdayCount > 0)
+      .slice(0, 12);
+    if (movers.length === 0) {
+      lines.push(`- 暂无可比较的主题（首次运行该 pack）。`);
+    } else {
+      for (const d of movers) {
+        const arrow = d.diff > 0 ? "↑" : d.diff < 0 ? "↓" : "·";
+        const pctStr = isFinite(d.pct) ? `${d.pct.toFixed(0)}%` : "(new)";
+        lines.push(
+          `- ${arrow} \`${d.topic}\`: ${d.yesterdayCount} → ${d.todayCount} (${pctStr})`,
+        );
+      }
+    }
+    if (comparison.newToday.length > 0) {
+      lines.push("");
+      lines.push(`**今日新出现的主题**: ${comparison.newToday.map((t) => `\`${t}\``).join(", ")}`);
+    }
+    lines.push("");
+  }
+
+  const maxSamples = template?.maxSamplesPerTopic ?? 8;
   lines.push(`## 主题分析`);
   for (const [key, items] of Object.entries(summary.topics)) {
     if (key === "noise") continue;
     const label = items[0]?.topicLabel ?? key;
     lines.push(`### ${label} (${items.length})`);
-    for (const t of items.slice(0, 8)) lines.push(fmtTweet(t));
+    for (const t of items.slice(0, maxSamples)) lines.push(fmtTweet(t));
     lines.push("");
   }
 
@@ -223,17 +384,19 @@ export function renderMarkdown(summary: Summary, config: AppConfig): string {
   }
   lines.push("");
 
-  lines.push(`## 新增信号 (AI 推断)`);
+  lines.push(`## 新增信号 (规则推断)`);
   if (summary.newSignals.length === 0) lines.push(`- 暂无明确新增信号。`);
   for (const s of summary.newSignals.slice(0, 15)) lines.push(`- ${s}`);
   lines.push("");
 
-  lines.push(`## 需要核验的传言 (未核实)`);
-  if (summary.rumors.length === 0) lines.push(`- 本轮未检测到典型传言关键词。`);
-  for (const r of summary.rumors.slice(0, 20)) {
-    lines.push(`- ${r.text} _(${r.reason})_`);
+  if (template?.includeRumors !== false) {
+    lines.push(`## 需要核验的传言 (未核实)`);
+    if (summary.rumors.length === 0) lines.push(`- 本轮未检测到典型传言关键词。`);
+    for (const r of summary.rumors.slice(0, 20)) {
+      lines.push(`- ${r.text} _(${r.reason})_`);
+    }
+    lines.push("");
   }
-  lines.push("");
 
   lines.push(`## 噪声与风险`);
   lines.push(`- 命中营销/低价值噪声: ${summary.noise} 条`);
@@ -251,12 +414,14 @@ export function renderMarkdown(summary: Summary, config: AppConfig): string {
   }
   lines.push("");
 
-  lines.push(`## 数据附录（最多 50 条原始样本）`);
-  for (const t of summary.appendix.samples) {
-    lines.push(fmtTweet(t));
+  if (template?.includeAppendix !== false) {
+    lines.push(`## 数据附录（最多 50 条原始样本）`);
+    for (const t of summary.appendix.samples) {
+      lines.push(fmtTweet(t));
+    }
+    lines.push("");
   }
-  lines.push("");
 
-  void config; // currently unused; reserved for future LLM prompting
+  void config;
   return lines.join("\n");
 }

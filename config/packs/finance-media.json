@@ -1,0 +1,87 @@
+{
+  "name": "finance-media",
+  "description": "Macro/markets/policy briefing source material for finance media authors and analysts.",
+  "version": "0.1.0",
+  "audience": "Financial journalists, macro researchers, finance newsletter authors, sell-side analysts",
+  "language": "zh-en",
+  "searchQueries": [
+    { "name": "macro-fed", "q": "Fed OR FOMC OR Powell OR \"rate cut\" OR \"rate hike\" OR yield", "live": true },
+    { "name": "us-earnings", "q": "earnings beat OR guidance OR revenue miss OR EPS", "live": true },
+    { "name": "us-stocks", "q": "S&P 500 OR Nasdaq OR Dow OR NVDA OR AAPL OR MSFT OR TSLA OR GOOGL OR META", "live": true },
+    { "name": "us-china-trade", "q": "China tariffs OR US-China trade OR export controls OR semiconductor ban", "live": true },
+    { "name": "commodities", "q": "oil OR gold OR copper OR WTI OR Brent OR OPEC", "live": true },
+    { "name": "fx-bonds", "q": "DXY OR yen OR yuan OR \"10-year\" OR Treasury yield", "live": true },
+    { "name": "cn-macro", "q": "PBoC OR \"人民银行\" OR \"中国 GDP\" OR 楼市 OR 地方债", "live": true },
+    { "name": "geopolitics", "q": "Russia Ukraine OR Middle East OR Iran Israel OR North Korea", "live": true }
+  ],
+  "lists": [],
+  "topics": {
+    "fed_rates": {
+      "label": "美联储 / 利率 / 美债",
+      "keywords": ["fed", "fomc", "powell", "rate cut", "rate hike", "yield curve", "treasury", "ten-year", "10-year", "dot plot", "neutral rate", "美联储", "鲍威尔"],
+      "watchHandles": ["@federalreserve", "@NickTimiraos"]
+    },
+    "us_earnings": {
+      "label": "美股财报 / 业绩指引",
+      "keywords": ["earnings", "eps", "revenue", "guidance", "beat estimate", "miss estimate", "buyback", "dividend"],
+      "watchHandles": []
+    },
+    "us_megacap": {
+      "label": "美股大盘 / 七巨头",
+      "keywords": ["s&p 500", "nasdaq", "dow", "nvda", "nvidia", "aapl", "apple", "msft", "microsoft", "tsla", "tesla", "googl", "alphabet", "meta", "amzn", "amazon"],
+      "watchHandles": ["@unusual_whales", "@DeItaone"]
+    },
+    "us_china": {
+      "label": "中美贸易 / 关税 / 出口管制",
+      "keywords": ["tariff", "trade war", "export control", "entity list", "chip ban", "section 301", "section 232", "huawei", "smic", "ymtc", "关税", "出口管制", "实体清单"],
+      "watchHandles": []
+    },
+    "commodities": {
+      "label": "大宗商品 (原油/金属/农产品)",
+      "keywords": ["oil", "wti", "brent", "opec", "gold", "silver", "copper", "iron ore", "wheat", "soybean", "原油", "黄金"],
+      "watchHandles": []
+    },
+    "fx_bonds": {
+      "label": "汇率 / 主权债",
+      "keywords": ["dxy", "dollar index", "yen", "jpy", "yuan", "cny", "rmb", "euro", "eur", "treasury yield", "jgb", "boj"],
+      "watchHandles": []
+    },
+    "cn_macro": {
+      "label": "中国宏观 (人行/房地产/地方债)",
+      "keywords": ["pboc", "人民银行", "lpr", "rrr", "gdp", "ppi", "cpi", "房地产", "地方债", "城投", "土地财政", "国务院", "财政部"],
+      "watchHandles": []
+    },
+    "geopolitics": {
+      "label": "地缘政治 / 战争 / 制裁",
+      "keywords": ["russia", "ukraine", "iran", "israel", "north korea", "houthi", "red sea", "taiwan strait", "sanctions", "制裁", "台海"],
+      "watchHandles": []
+    },
+    "ipo_ma": {
+      "label": "IPO / 并购 / 退市",
+      "keywords": ["ipo", "secondary offering", "merger", "acquisition", "spin-off", "delisting", "ipo 上市", "并购", "退市"],
+      "watchHandles": []
+    }
+  },
+  "fallbackTopic": "other",
+  "rumorHints": [
+    "rumor", "rumour", "据传", "传闻", "据说", "leaked", "leak", "sources say", "anonymous source",
+    "源自", "据知情人士", "未经证实"
+  ],
+  "noiseHints": [
+    "giveaway", "follow back", "promo", "buy this stock now", "10x in 30 days", "trade signal",
+    "限时", "薅羊毛", "白嫖", "subscribe to my premium"
+  ],
+  "llmSystemPrompt": "You are a senior financial-media editor producing source-material briefings for journalists and macro analysts. Strictly separate: [FACT] (official central bank statements, government releases, company filings, named-source reporting from Reuters/Bloomberg/WSJ/FT), [INFER] (analyst takes, market-implied moves), [RUMOR] (anonymous-source leaks, sell-side whispers). For each item include: who/what/when/where, plus a quoted tweet snippet (with @handle). Tone: factual, neutral, sober — never breathless. Cover U.S. monetary policy, U.S. earnings, U.S.-China trade & tech restrictions, commodities, FX & sovereign bonds, China macro, geopolitics. Output bilingual zh-en: section headers in Chinese, but preserve all proper nouns, ticker symbols, and quoted text in their original language. The audience will reuse this as raw material to write articles, so prioritise verifiability over color.",
+  "llmUserPromptTemplate": "## TOPIC DUMP\n{{topicDump}}\n\n## YESTERDAY'S COUNTS\n{{previousDayCounts}}\n\n## TASK\nProduce a financial-media briefing in Markdown:\n1. **今日宏观要点 (Macro headlines today)** — top 5 verifiable headlines, each ≤ 30 字, tagged [FACT]/[INFER]/[RUMOR].\n2. **美联储与利率 (Fed & rates)** — Fed officials' statements, yield curve moves.\n3. **美股市场 (US equities)** — earnings beats/misses, mega-cap moves, sector rotations.\n4. **中美与贸易 (US-China & trade)** — tariffs, export controls, sanctions.\n5. **大宗与外汇 (Commodities & FX)** — oil/gold/USD/JPY/CNY notable moves.\n6. **中国宏观 (China macro)** — PBoC actions, housing, local debt, fiscal.\n7. **地缘政治 (Geopolitics)** — Russia/Ukraine, Middle East, Asia-Pacific.\n8. **待核实 (To verify)** — rumored items journalists should chase down.\n\nQuote at least one tweet per major item. Do not include speculation that lacks even a single corroborating signal in the topic dump.",
+  "reportTemplate": {
+    "title": "财经媒体素材简报",
+    "introNote": "面向财经媒体记者和宏观研究员的素材简报。区分「事实 / 推断 / 传言」三类；推文引用保留原文与 @handle，便于后续核实。",
+    "sections": [],
+    "includeTrends": true,
+    "includeRumors": true,
+    "includeAppendix": true,
+    "maxSamplesPerTopic": 10,
+    "reportTone": "media"
+  },
+  "pushChannels": ["notion"]
+}

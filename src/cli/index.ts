@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config/index.js";
+import { discoverPacks } from "../config/packs.js";
 import { createLogger } from "../utils/logger.js";
 import { parseDuration } from "../utils/time.js";
 import {
@@ -18,6 +19,17 @@ import { readJsonl } from "../storage/jsonlStore.js";
 import type { RoundRecord } from "../types/index.js";
 import { summarize } from "../analysis/summarize.js";
 import { pushSummary } from "../integrations/notion.js";
+import { pushToChannels } from "../integrations/push.js";
+import { buildLlmAdapter } from "../integrations/llm.js";
+import {
+  buildAggregate,
+  compareDays,
+  findPreviousAggregate,
+  nowDate,
+  writeAggregate,
+} from "../storage/dayAggregates.js";
+import { runDoctor, formatReport } from "./doctor.js";
+import { startServer } from "./serve.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,9 +47,23 @@ function readPkgVersion(): string {
 const program = new Command();
 program
   .name("xintel")
-  .description("Local-only X.com intelligence collector with Notion ingestion (read-only)")
+  .description("Local-only X.com intelligence platform with Segment Packs (read-only)")
   .version(readPkgVersion())
-  .option("--config <path>", "path to local config json", undefined);
+  .option("--config <path>", "path to local config json", undefined)
+  .option("--pack <name>", "override enabled segment packs for this command (comma-separated)");
+
+interface RootOpts {
+  config?: string;
+  pack?: string;
+}
+
+function rootOpts(): { configPath?: string; packs?: string[] } {
+  const o = program.opts<RootOpts>();
+  return {
+    configPath: o.config,
+    packs: o.pack ? o.pack.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+  };
+}
 
 const browser = program
   .command("browser")
@@ -52,7 +78,7 @@ browser
   .option("--edge", "prefer Microsoft Edge")
   .option("--headless", "launch headless (not recommended for X)")
   .action(async (cmdOpts: LaunchOptions & { headless?: boolean }) => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     const log = createLogger({
       level: config.logging.level,
       prettyPrint: config.logging.prettyPrint,
@@ -85,7 +111,7 @@ browser
   .option("--port <port>", "remote debugging port", (v) => Number(v))
   .option("--json", "machine-readable output")
   .action(async (cmdOpts: { port?: number; json?: boolean }) => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     const port = cmdOpts.port ?? config.browser.port;
     const status = await checkBrowserStatus(port, config.browser.healthCheckTimeoutMs);
     if (cmdOpts.json) {
@@ -94,8 +120,9 @@ browser
       console.log(`Browser reachable on port ${port}: ${status.browserVersion ?? "?"}`);
     } else {
       console.log(`Browser NOT reachable on port ${port}: ${status.error ?? "unknown"}`);
-      process.exitCode = 1;
     }
+    // T3 fix: exit code must be set regardless of --json
+    if (!status.reachable) process.exitCode = 1;
   });
 
 program
@@ -113,9 +140,7 @@ program
     sources?: string;
     out?: string;
   }) => {
-    const { config, hash } = loadConfig({
-      configPath: program.opts<{ config?: string }>().config,
-    });
+    const { config, hash } = loadConfig(rootOpts());
     const rounds = cmdOpts.rounds ?? config.schedule.rounds;
     const intervalMs = cmdOpts.interval
       ? parseDuration(cmdOpts.interval)
@@ -139,7 +164,7 @@ program
   .command("pause")
   .description("Pause a running collection")
   .action(async () => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     const resp = await sendIpc(config.paths.ipcSocket, { cmd: "pause" });
     console.log(JSON.stringify(resp, null, 2));
   });
@@ -148,7 +173,7 @@ program
   .command("resume")
   .description("Resume a paused collection")
   .action(async () => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     const resp = await sendIpc(config.paths.ipcSocket, { cmd: "resume" });
     console.log(JSON.stringify(resp, null, 2));
   });
@@ -157,7 +182,7 @@ program
   .command("stop")
   .description("Stop a running collection")
   .action(async () => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     const resp = await sendIpc(config.paths.ipcSocket, { cmd: "stop" });
     console.log(JSON.stringify(resp, null, 2));
   });
@@ -167,7 +192,7 @@ program
   .description("Show current collection status")
   .option("--json", "machine-readable output")
   .action(async (cmdOpts: { json?: boolean }) => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     let live = null;
     try {
       live = await sendIpc(config.paths.ipcSocket, { cmd: "status" }, 1000);
@@ -192,12 +217,14 @@ program
 
 program
   .command("summarize")
-  .description("Generate Markdown briefing from a collected JSONL file")
+  .description("Generate Markdown briefing from a collected JSONL file (with LLM + cross-day if enabled)")
   .requiredOption("--input <file>", "path to data/runs/<runId>.jsonl")
   .option("--out <file>", "output Markdown path (default: data/summaries/<runId>.md)")
   .option("--json", "also write summary.json next to the markdown")
-  .action(async (cmdOpts: { input: string; out?: string; json?: boolean }) => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+  .option("--no-llm", "skip LLM enhancement even if enabled")
+  .option("--no-aggregate", "skip writing the daily aggregate (no cross-day comparison)")
+  .action(async (cmdOpts: { input: string; out?: string; json?: boolean; llm?: boolean; aggregate?: boolean }) => {
+    const { config, packs } = loadConfig(rootOpts());
     const input = resolve(cmdOpts.input);
     if (!existsSync(input)) {
       throw new Error(`Input JSONL not found: ${input}`);
@@ -209,19 +236,49 @@ program
     const runId = rounds[0]?.meta?.configHash
       ? `${rounds[0]!.startedAt.slice(0, 10)}-${rounds[0]!.meta.configHash}`
       : "run";
-    const { summary, markdown } = summarize({ runId, rounds, config });
+
+    const pack = packs[0]?.pack ?? null;
+    const packName = pack?.name ?? "default";
+
+    const llm = cmdOpts.llm === false ? null : buildLlmAdapter(config.llm);
+
+    const date = nowDate();
+    const previous = findPreviousAggregate(config.paths.aggregatesDir, date, packName);
+    const partial = await summarize({ runId, rounds, config, pack, llm });
+    const todayAgg = buildAggregate({
+      pack: packName,
+      date,
+      raw: partial.aggregate.raw,
+      deduped: partial.aggregate.deduped,
+      perTopic: partial.aggregate.perTopic,
+      perSource: partial.aggregate.perSource,
+      highFrequency: partial.aggregate.highFrequency,
+      rumorCount: partial.aggregate.rumorCount,
+      noiseCount: partial.aggregate.noiseCount,
+    });
+    const comparison = compareDays(todayAgg, previous);
+
+    // Re-render with comparison block now that we have it.
+    const final = await summarize({ runId, rounds, config, pack, llm, comparison });
+
     const defaultOut = resolve(
       config.paths.summariesDir,
-      `${runId}.md`,
+      `${date}-${packName}-${runId}.md`,
     );
     const outPath = cmdOpts.out ? resolve(cmdOpts.out) : defaultOut;
     mkdirSync(dirname(outPath), { recursive: true });
-    writeFileSync(outPath, markdown, "utf8");
+    writeFileSync(outPath, final.markdown, "utf8");
     if (cmdOpts.json) {
       const jsonOut = outPath.replace(/\.md$/, ".json");
-      writeFileSync(jsonOut, JSON.stringify(summary, null, 2), "utf8");
+      writeFileSync(jsonOut, JSON.stringify(final.summary, null, 2), "utf8");
+    }
+    if (cmdOpts.aggregate !== false) {
+      writeAggregate(config.paths.aggregatesDir, todayAgg);
     }
     console.log(outPath);
+    if (final.llmUsed) {
+      console.error(`(LLM enhancement applied; provider=${config.llm.provider})`);
+    }
   });
 
 const notion = program.command("notion").description("Notion ingestion commands");
@@ -233,7 +290,7 @@ notion
   .option("--token <token>", "Notion internal integration token (defaults to env NOTION_TOKEN)")
   .option("--title <title>", "override page title")
   .action(async (cmdOpts: { summary: string; parentPageId?: string; token?: string; title?: string }) => {
-    const { config } = loadConfig({ configPath: program.opts<{ config?: string }>().config });
+    const { config } = loadConfig(rootOpts());
     if (!cmdOpts.parentPageId && !config.notion.parentPageId && !process.env.NOTION_PARENT_PAGE_ID) {
       console.error(
         "Notion parent page id is not configured. Pass --parent-page-id, " +
@@ -254,15 +311,144 @@ notion
     console.log(JSON.stringify(result, null, 2));
   });
 
+program
+  .command("push")
+  .description("Push a briefing to all configured push channels (notion/webhook/slack/discord/telegram)")
+  .requiredOption("--summary <file>", "Markdown briefing file path")
+  .option("--title <title>", "override title")
+  .option("--channels <list>", "comma-separated channel names or types (defaults: all enabled)")
+  .action(async (cmdOpts: { summary: string; title?: string; channels?: string }) => {
+    const { config } = loadConfig(rootOpts());
+    const summaryPath = resolve(cmdOpts.summary);
+    if (!existsSync(summaryPath)) {
+      throw new Error(`Summary file not found: ${summaryPath}`);
+    }
+    const markdown = readFileSync(summaryPath, "utf8");
+    const title = cmdOpts.title ?? `X 情报简报 - ${nowDate()}`;
+    const channels = cmdOpts.channels
+      ? cmdOpts.channels.split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const outcome = await pushToChannels(
+      { summaryPath, title, markdown, channels },
+      config,
+    );
+    console.log(JSON.stringify(outcome, null, 2));
+    if (outcome.failCount > 0 && outcome.okCount === 0) {
+      process.exitCode = 1;
+    }
+  });
+
+const pack = program.command("pack").description("Segment pack management");
+pack
+  .command("list")
+  .description("List packs that are available in the configured search paths")
+  .option("--json", "machine-readable output")
+  .action((cmdOpts: { json?: boolean }) => {
+    const { config, projectRoot, packs } = loadConfig(rootOpts());
+    const available = discoverPacks(projectRoot, config.packs.searchPaths);
+    const enabledNames = new Set(packs.map((p) => p.pack.name));
+    if (cmdOpts.json) {
+      console.log(
+        JSON.stringify(
+          available.map((p) => ({
+            name: p.pack.name,
+            description: p.pack.description,
+            version: p.pack.version,
+            audience: p.pack.audience,
+            language: p.pack.language,
+            topicCount: Object.keys(p.pack.topics).length,
+            path: p.path,
+            enabled: enabledNames.has(p.pack.name),
+          })),
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (available.length === 0) {
+      console.log("No packs found. Add JSON to config/packs/ or another searchPaths entry.");
+      return;
+    }
+    console.log(`Available packs (${available.length}):\n`);
+    for (const p of available) {
+      const mark = enabledNames.has(p.pack.name) ? "[x]" : "[ ]";
+      console.log(`${mark} ${p.pack.name}  (${Object.keys(p.pack.topics).length} topics, ${p.pack.language})`);
+      console.log(`    ${p.pack.description}`);
+      console.log(`    audience: ${p.pack.audience}`);
+      console.log(`    path: ${p.path}`);
+      console.log("");
+    }
+    console.log(`Enable packs by setting packs.enabled in config/local.json, or via --pack <name> on any command.`);
+  });
+
+pack
+  .command("show <name>")
+  .description("Print the full JSON of a pack")
+  .action((name: string) => {
+    const { config, projectRoot } = loadConfig(rootOpts());
+    const found = discoverPacks(projectRoot, config.packs.searchPaths).find((p) => p.pack.name === name);
+    if (!found) {
+      console.error(`Pack not found: ${name}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(JSON.stringify(found.pack, null, 2));
+  });
+
+program
+  .command("doctor")
+  .description("Run health checks (browser, last run, selector drift, packs, LLM, push)")
+  .option("--json", "machine-readable output")
+  .action(async (cmdOpts: { json?: boolean }) => {
+    const { config, packs, missingPacks } = loadConfig(rootOpts());
+    const report = await runDoctor(config, packs, missingPacks);
+    if (cmdOpts.json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log(formatReport(report));
+    }
+    if (report.overall === "fail") process.exitCode = 1;
+  });
+
+program
+  .command("serve")
+  .description("Start the read-only web dashboard on localhost")
+  .option("--port <port>", "TCP port to listen on", (v) => Number(v), 3478)
+  .action(async (cmdOpts: { port: number }) => {
+    const { config, packs } = loadConfig(rootOpts());
+    const log = createLogger({
+      level: config.logging.level,
+      prettyPrint: config.logging.prettyPrint,
+    });
+    const server = startServer({ port: cmdOpts.port, cfg: config, packs });
+    log.info({ url: server.url }, "Dashboard started");
+    console.log(`xintel dashboard: ${server.url}`);
+    console.log("Press Ctrl+C to stop.");
+    const stop = async (sig: NodeJS.Signals) => {
+      log.warn({ sig }, "Stopping dashboard");
+      await server.stop();
+      process.exit(0);
+    };
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
+    // keep alive
+    await new Promise(() => undefined);
+  });
+
 const conf = program.command("config").description("Configuration helpers");
 conf
   .command("show")
-  .description("Print the merged configuration (after defaults + local overrides)")
+  .description("Print the merged configuration (after defaults + local overrides + packs)")
   .action(() => {
-    const { config, sources, hash } = loadConfig({
-      configPath: program.opts<{ config?: string }>().config,
-    });
-    console.log(JSON.stringify({ hash, sources, config }, null, 2));
+    const { config, sources, hash, packs, missingPacks } = loadConfig(rootOpts());
+    console.log(JSON.stringify({
+      hash,
+      sources,
+      enabledPacks: packs.map((p) => p.pack.name),
+      missingPacks,
+      config,
+    }, null, 2));
   });
 
 conf
