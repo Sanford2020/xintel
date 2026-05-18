@@ -1,0 +1,83 @@
+{
+  "product": {
+    "name": "xintel",
+    "tagline": "AI-powered X.com intelligence platform",
+    "version": "0.3.0",
+    "type": "intelligence-as-a-service"
+  },
+  "opc": {
+    "stage": "build",
+    "infrastructure": {
+      "userPool": {
+        "channels": ["telegram", "discord", "newsletter", "x"],
+        "status": "planned"
+      },
+      "contentPool": {
+        "sources": ["x.com"],
+        "formats": ["markdown-briefing", "json-aggregate", "structured-signals"],
+        "storage": "local-jsonl",
+        "status": "active"
+      },
+      "productPool": {
+        "products": [
+          {
+            "name": "ai-watcher",
+            "description": "AI industry intelligence briefings",
+            "pricing": { "basic": 9, "pro": 19, "currency": "USD", "interval": "month" },
+            "status": "mvp"
+          },
+          {
+            "name": "crypto-trader",
+            "description": "Crypto trading signals & sentiment",
+            "pricing": { "basic": 19, "pro": 39, "currency": "USD", "interval": "month" },
+            "status": "planned"
+          },
+          {
+            "name": "finance-media",
+            "description": "Financial media monitoring & analysis",
+            "pricing": { "basic": 9, "pro": 29, "currency": "USD", "interval": "month" },
+            "status": "planned"
+          }
+        ]
+      },
+      "automation": {
+        "collection": "playwright-based",
+        "analysis": "rule-based + llm",
+        "distribution": ["notion", "slack", "discord", "telegram", "webhook"],
+        "humanInLoop": "telegram-bot",
+        "status": "active"
+      },
+      "payment": {
+        "provider": "stripe",
+        "tiers": ["free", "basic", "pro"],
+        "status": "integrated"
+      }
+    }
+  },
+  "twelveFactorCompliance": {
+    "F01_naturalLanguageToToolCalls": { "status": "partial", "note": "Structured LLM output added" },
+    "F02_ownYourPrompts": { "status": "done", "note": "Per-pack system prompts" },
+    "F03_ownYourContext": { "status": "done", "note": "Custom topicDump templates" },
+    "F04_toolsAreStructuredOutputs": { "status": "done", "note": "Zod-validated signal schema" },
+    "F05_unifiedState": { "status": "done", "note": "RoundRecord + RunStatus" },
+    "F06_launchPauseResume": { "status": "done", "note": "IPC + REST API" },
+    "F07_contactHumans": { "status": "done", "note": "Telegram bot with alertHuman()" },
+    "F08_ownControlFlow": { "status": "done", "note": "deterministic runner loop" },
+    "F09_compactErrors": { "status": "done", "note": "try/catch + consecutive failure threshold" },
+    "F10_smallFocusedAgents": { "status": "done", "note": "3 independent segment packs" },
+    "F11_triggerFromAnywhere": { "status": "done", "note": "REST API /trigger + Telegram /commands" },
+    "F12_statelessReducer": { "status": "partial", "note": "JSONL append-only, status derived from latest" }
+  },
+  "agencyAgents": {
+    "activeRoles": [
+      { "role": "Trend Researcher", "maps_to": "analysis/summarize + structuredOutput" },
+      { "role": "Backend Architect", "maps_to": "api/router + config/schema" },
+      { "role": "DevOps Automator", "maps_to": "Dockerfile + docker-compose" }
+    ],
+    "plannedRoles": [
+      { "role": "Growth Hacker", "maps_to": "newsletter + landing page" },
+      { "role": "Content Creator", "maps_to": "auto-post to X/newsletter" },
+      { "role": "AI Engineer", "maps_to": "multi-model routing + RAG" }
+    ]
+  }
+}

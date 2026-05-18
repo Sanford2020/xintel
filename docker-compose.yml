@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  xintel-api:
+    build: .
+    ports:
+      - "${XINTEL_API_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - XINTEL_API_HOST=0.0.0.0
+      - XINTEL_API_PORT=3000
+      - XINTEL_API_KEYS=${XINTEL_API_KEYS:-}
+      - XINTEL_SUBSCRIPTION_TIER=${XINTEL_SUBSCRIPTION_TIER:-free}
+      # LLM
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # Push channels
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Stripe
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_BASIC=${STRIPE_PRICE_BASIC:-}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+    volumes:
+      - xintel-data:/app/data
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health').then(r => process.exit(r.ok ? 0 : 1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  xintel-data:

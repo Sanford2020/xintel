@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config/index.js";
@@ -30,6 +30,8 @@ import {
 } from "../storage/dayAggregates.js";
 import { runDoctor, formatReport } from "./doctor.js";
 import { startServer } from "./serve.js";
+import { startApiServer } from "../api/router.js";
+import { buildTelegramBot, registerDefaultCommands } from "../integrations/telegramBot.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -433,6 +435,65 @@ program
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);
     // keep alive
+    await new Promise(() => undefined);
+  });
+
+program
+  .command("api")
+  .description("Start the public REST API server (12-Factor F6/F11)")
+  .option("--port <port>", "TCP port", (v) => Number(v), 3000)
+  .option("--host <host>", "bind address", "127.0.0.1")
+  .option("--with-bot", "also start Telegram bot polling (12-Factor F7)")
+  .action(async (cmdOpts: { port: number; host: string; withBot?: boolean }) => {
+    const { config, packs } = loadConfig(rootOpts());
+    const log = createLogger({
+      level: config.logging.level,
+      prettyPrint: config.logging.prettyPrint,
+    });
+    const apiKeys = process.env.XINTEL_API_KEYS
+      ? process.env.XINTEL_API_KEYS.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    const server = startApiServer({
+      port: cmdOpts.port,
+      host: cmdOpts.host,
+      cfg: config,
+      packs,
+      apiKeys,
+    });
+    log.info({ url: server.url }, "API server started");
+    console.log(`xintel API: ${server.url}`);
+
+    if (cmdOpts.withBot) {
+      const bot = buildTelegramBot();
+      if (bot) {
+        registerDefaultCommands(
+          bot,
+          () => StatusStore.load(config.paths.statusFile),
+          () => {
+            if (!existsSync(config.paths.summariesDir)) return null;
+            const files = readdirSync(config.paths.summariesDir)
+              .filter((f: string) => f.endsWith(".md"))
+              .sort()
+              .reverse();
+            if (files.length === 0) return null;
+            return readFileSync(resolve(config.paths.summariesDir, files[0]!), "utf8");
+          },
+        );
+        void bot.startPolling();
+        log.info("Telegram bot started");
+      } else {
+        log.warn("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set, bot disabled");
+      }
+    }
+
+    console.log("Press Ctrl+C to stop.");
+    const stop = async (sig: NodeJS.Signals) => {
+      log.warn({ sig }, "Stopping API server");
+      await server.stop();
+      process.exit(0);
+    };
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
     await new Promise(() => undefined);
   });
 
